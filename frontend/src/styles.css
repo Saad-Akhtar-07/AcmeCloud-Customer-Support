@@ -225,34 +225,6 @@ button:disabled {
   line-height: 1.7;
 }
 
-.feature-list {
-  list-style: none;
-  display: grid;
-  gap: 13px;
-  margin: 36px 0 0;
-  padding: 0;
-}
-
-.feature-list li {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: rgba(255, 255, 255, 0.94);
-  font-size: 14px;
-  font-weight: 620;
-}
-
-.feature-list span {
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.14);
-  color: #e8f8ff;
-  font-size: 11px;
-}
-
 .intro-footnote {
   position: relative;
   z-index: 1;
@@ -574,30 +546,6 @@ button:disabled {
   color: #7f91a6;
   font-size: 11px;
   line-height: 1.55;
-}
-
-.support-hours {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin-top: auto;
-  padding: 20px 5px 4px;
-}
-
-.support-hours > div {
-  display: grid;
-  gap: 3px;
-}
-
-.support-hours strong {
-  color: #405e7b;
-  font-size: 12px;
-}
-
-.support-hours small {
-  color: #899aab;
-  font-size: 10px;
-  line-height: 1.4;
 }
 
 .presence-dot {

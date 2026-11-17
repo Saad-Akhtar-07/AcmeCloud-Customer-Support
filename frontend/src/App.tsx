@@ -16,7 +16,7 @@ const welcomeMessage: ChatMessage = {
   id: 'welcome',
   role: 'assistant',
   content:
-    'Hi! I’m the AcmeCloud support assistant. Tell me what’s happening, and I’ll check the relevant account details and support policies.',
+    'Hi! How can we help today? Describe what happened and include any error message you saw.',
   createdAt: new Date().toISOString(),
 };
 
@@ -67,6 +67,22 @@ function statusTone(status?: string) {
   if (status === 'Waiting for Approval' || status === 'Escalated') return 'warning';
   if (status === 'Failed' || status === 'Customer Not Found') return 'danger';
   return 'info';
+}
+
+function statusLabel(status?: string) {
+  if (!status) return '';
+  const labels: Record<string, string> = {
+    'Not Started': 'Received',
+    Investigating: 'In progress',
+    'Waiting for Tool': 'In progress',
+    'Waiting for Customer': 'Waiting for your reply',
+    'Waiting for Approval': 'Under review',
+    Completed: 'Resolved',
+    Failed: 'Needs attention',
+    Escalated: 'Specialist review',
+    'Customer Not Found': 'Account not found',
+  };
+  return labels[status] || status;
 }
 
 function BrandMark() {
@@ -178,19 +194,13 @@ function LoginScreen({ onSignedIn }: { onSignedIn: (session: Session) => void })
           <span>AcmeCloud</span>
         </div>
         <div className="intro-copy">
-          <span className="secure-pill"><ShieldIcon /> Secure customer support</span>
-          <h1>Support that already knows where to look.</h1>
+          <span className="secure-pill"><ShieldIcon /> AcmeCloud Support</span>
+          <h1>Get help with your AcmeCloud account.</h1>
           <p>
-            Sign in to get help grounded in your AcmeCloud account, subscription,
-            recent service events, and approved support policies.
+            Sign in to start a support conversation or continue where you left off.
           </p>
-          <ul className="feature-list">
-            <li><span>01</span> Verified account context</li>
-            <li><span>02</span> Clear answers and next steps</li>
-            <li><span>03</span> Human review for sensitive requests</li>
-          </ul>
         </div>
-        <p className="intro-footnote">Your password is handled securely by Supabase Auth.</p>
+        <p className="intro-footnote">Never share your password or verification codes in a support message.</p>
       </section>
 
       <section className="login-panel">
@@ -231,11 +241,11 @@ function LoginScreen({ onSignedIn }: { onSignedIn: (session: Session) => void })
           {error && <p className="form-error" role="alert">{error}</p>}
 
           <button className="primary-button" type="submit" disabled={submitting}>
-            {submitting ? <><span className="spinner" /> Signing in…</> : 'Sign in securely'}
+            {submitting ? <><span className="spinner" /> Signing in…</> : 'Sign in'}
           </button>
 
           <p className="account-note">
-            Need access? Ask your AcmeCloud administrator to create your customer login.
+            Don’t have access? Contact your AcmeCloud administrator.
           </p>
         </form>
       </section>
@@ -249,13 +259,13 @@ function TicketSummary({ result }: { result: SupportResponse }) {
     <div className="ticket-card">
       <div className="ticket-topline">
         <span>Support case</span>
-        <span className={'status-badge ' + statusTone(result.status)}>{result.status}</span>
+        <span className={'status-badge ' + statusTone(result.status)}>{statusLabel(result.status)}</span>
       </div>
       <strong>Ticket #{result.ticket_id}</strong>
       <div className="ticket-meta">
         {result.issue_category && <span>{result.issue_category}</span>}
-        {result.issue_severity && <span>{result.issue_severity} severity</span>}
-        {result.requires_human_approval && <span>Human approval required</span>}
+        {result.issue_severity && <span>Priority: {result.issue_severity}</span>}
+        {result.requires_human_approval && <span>Specialist review required</span>}
       </div>
     </div>
   );
@@ -396,11 +406,10 @@ function SupportPortal({ session }: { session: Session }) {
       <div className="portal-body">
         <aside className="support-sidebar">
           <div>
-            <p className="eyebrow">Support workspace</p>
-            <h2>How can we help?</h2>
+            <p className="eyebrow">Customer support</p>
+            <h2>What can we help with?</h2>
             <p className="sidebar-copy">
-              Describe the issue in your own words. The assistant can check approved support
-              information and your verified account context.
+              Tell us what happened and what you expected. Include any error message you saw.
             </p>
           </div>
 
@@ -412,16 +421,8 @@ function SupportPortal({ session }: { session: Session }) {
           <div className="sidebar-panel">
             <span className="panel-icon"><ShieldIcon /></span>
             <div>
-              <strong>Your data stays protected</strong>
+              <strong>Protect your account</strong>
               <p>Never share passwords, one-time codes, card numbers, API keys, or recovery codes.</p>
-            </div>
-          </div>
-
-          <div className="support-hours">
-            <span className="presence-dot" />
-            <div>
-              <strong>AI support is online</strong>
-              <small>Sensitive requests go to a human specialist.</small>
             </div>
           </div>
         </aside>
@@ -432,12 +433,12 @@ function SupportPortal({ session }: { session: Session }) {
               <div className="agent-avatar"><BrandMark /></div>
               <div>
                 <h1>AcmeCloud Support</h1>
-                <p><span className="presence-dot" /> Online · Account-aware assistant</p>
+                <p><span className="presence-dot" /> Online</p>
               </div>
             </div>
             {latestResult && (
               <span className={'status-badge ' + statusTone(latestResult.status)}>
-                {latestResult.status}
+                {statusLabel(latestResult.status)}
               </span>
             )}
           </header>
@@ -473,7 +474,7 @@ function SupportPortal({ session }: { session: Session }) {
                 <div className="message-stack">
                   <div className="message-bubble typing">
                     <span /><span /><span />
-                    <em>Checking your account and support guidance…</em>
+                    <em>Reviewing your request…</em>
                   </div>
                 </div>
               </article>
@@ -487,7 +488,7 @@ function SupportPortal({ session }: { session: Session }) {
                 value={draft}
                 onChange={(event) => setDraft(event.target.value.slice(0, 4000))}
                 onKeyDown={handleComposerKeyDown}
-                placeholder="Describe what you need help with…"
+                placeholder="Type your message…"
                 rows={1}
                 disabled={sending}
                 aria-label="Support message"
