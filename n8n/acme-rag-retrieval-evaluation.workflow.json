@@ -1,0 +1,168 @@
+{
+  "name": "ACME – Eval – RAG Retrieval",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        0
+      ],
+      "id": "696a10ab-c58b-49cc-9a6e-fc6344663f76",
+      "name": "Run RAG Evaluation"
+    },
+    {
+      "parameters": {
+        "jsCode": "const cases = [\n  { test_id: 'RAG-001', query: 'I paid for Pro but my account is still Free.', acceptable_document_codes: 'KB-TECH-001|KB-SUB-001', category: 'activation' },\n  { test_id: 'RAG-002', query: 'When may support automatically retry a failed subscription activation?', acceptable_document_codes: 'KB-SUB-001', category: 'activation' },\n  { test_id: 'RAG-003', query: 'How must support verify that an activation retry really succeeded?', acceptable_document_codes: 'KB-SUB-001|KB-OPS-001', category: 'activation' },\n  { test_id: 'RAG-004', query: 'The system already attempted two activation retries in thirty minutes. Should it retry again?', acceptable_document_codes: 'KB-SUB-001', category: 'activation' },\n  { test_id: 'RAG-005', query: 'I purchased my first subscription seven days ago and want a refund.', acceptable_document_codes: 'KB-BILL-001', category: 'billing' },\n  { test_id: 'RAG-006', query: 'I was charged twice for the same renewal period.', acceptable_document_codes: 'KB-BILL-001', category: 'billing' },\n  { test_id: 'RAG-007', query: 'I do not recognize this payment and want the charge reversed.', acceptable_document_codes: 'KB-BILL-001|KB-SEC-001', category: 'billing' },\n  { test_id: 'RAG-008', query: 'My payment failed. Can support retry product activation anyway?', acceptable_document_codes: 'KB-BILL-001|KB-SUB-001', category: 'billing' },\n  { test_id: 'RAG-009', query: 'One workspace member cannot see a change that another member can see.', acceptable_document_codes: 'KB-TECH-001', category: 'troubleshooting' },\n  { test_id: 'RAG-010', query: 'Our CRM integration stopped syncing because its OAuth token expired.', acceptable_document_codes: 'KB-TECH-001', category: 'troubleshooting' },\n  { test_id: 'RAG-011', query: 'What should support collect when an API integration keeps failing?', acceptable_document_codes: 'KB-TECH-001', category: 'troubleshooting' },\n  { test_id: 'RAG-012', query: 'The application is stale in one browser but works in a private window.', acceptable_document_codes: 'KB-TECH-001', category: 'troubleshooting' },\n  { test_id: 'RAG-013', query: 'I saw a sign-in from a device I do not recognize.', acceptable_document_codes: 'KB-SEC-001', category: 'security' },\n  { test_id: 'RAG-014', query: 'I forgot my password and cannot sign in.', acceptable_document_codes: 'KB-SEC-001', category: 'security' },\n  { test_id: 'RAG-015', query: 'Delete my account and all of my stored data immediately.', acceptable_document_codes: 'KB-SEC-001|KB-ACCT-001', category: 'security' },\n  { test_id: 'RAG-016', query: 'Change the account owner and primary email address for me.', acceptable_document_codes: 'KB-SEC-001', category: 'security' },\n  { test_id: 'RAG-017', query: 'Please cancel my individual subscription at the end of the billing period.', acceptable_document_codes: 'KB-ACCT-001', category: 'account_management' },\n  { test_id: 'RAG-018', query: 'Can support automatically cancel our Business subscription?', acceptable_document_codes: 'KB-ACCT-001', category: 'account_management' },\n  { test_id: 'RAG-019', query: 'Cancel my subscription and refund the current payment.', acceptable_document_codes: 'KB-ACCT-001|KB-BILL-001', category: 'account_management' },\n  { test_id: 'RAG-020', query: 'What should a customer know before downgrading their plan?', acceptable_document_codes: 'KB-ACCT-001', category: 'account_management' },\n  { test_id: 'RAG-021', query: 'An API action returned success but the account state did not change. Is the case completed?', acceptable_document_codes: 'KB-OPS-001|KB-SUB-001', category: 'operations' },\n  { test_id: 'RAG-022', query: 'How should the support workflow prevent duplicate webhook requests from creating duplicate tickets?', acceptable_document_codes: 'KB-OPS-001', category: 'operations' },\n  { test_id: 'RAG-023', query: 'What should happen when the language model returns malformed structured output?', acceptable_document_codes: 'KB-OPS-001', category: 'operations' },\n  { test_id: 'RAG-024', query: 'What should the agent tell the customer when the database is unavailable?', acceptable_document_codes: 'KB-OPS-001|KB-TECH-001', category: 'operations' }\n];\n\nreturn cases.map((testCase) => ({\n  json: {\n    ...testCase,\n    top_k: 5\n  },\n  pairedItem: { item: 0 }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -560,
+        0
+      ],
+      "id": "c7601cdc-ad1c-46bd-aaca-88c50f5cc817",
+      "name": "Build Evaluation Cases"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "7QhXzqQue1G0HnEK",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/7QhXzqQue1G0HnEK",
+          "cachedResultName": "ACME – Tool – Search Knowledge"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "query": "={{ $json.query }}",
+            "top_k": "={{ $json.top_k }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "top_k",
+              "displayName": "top_k",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.4,
+      "position": [
+        -280,
+        0
+      ],
+      "id": "e39cd195-75c5-48e2-8437-d3e9ff1b1e87",
+      "name": "Search Knowledge for Each Case"
+    },
+    {
+      "parameters": {
+        "jsCode": "const testCases = $('Build Evaluation Cases').all().map((item) => item.json);\nconst searchOutputs = $input.all().map((item) => item.json);\n\nif (searchOutputs.length !== testCases.length) {\n  throw new Error(`Expected ${testCases.length} search outputs but received ${searchOutputs.length}`);\n}\n\nreturn searchOutputs.map((searchOutput, index) => {\n  const testCase = testCases[index];\n  const acceptableCodes = String(testCase.acceptable_document_codes ?? '')\n    .split('|')\n    .map((value) => value.trim())\n    .filter(Boolean);\n\n  const results = Array.isArray(searchOutput.results) ? searchOutput.results : [];\n  const matchingRankIndex = results.findIndex((result) =>\n    acceptableCodes.includes(result.document_code)\n  );\n\n  const topFiveCodes = results\n    .slice(0, 5)\n    .map((result) => result.document_code);\n\n  return {\n    json: {\n      test_id: testCase.test_id,\n      category: testCase.category,\n      query: testCase.query,\n      acceptable_document_codes: acceptableCodes.join('|'),\n      found: Boolean(searchOutput.found),\n      result_count: Number(searchOutput.result_count ?? 0),\n      actual_top1_document_code: results[0]?.document_code ?? null,\n      actual_top1_section_title: results[0]?.section_title ?? null,\n      actual_top5_document_codes: topFiveCodes.join('|'),\n      matching_rank: matchingRankIndex >= 0 ? matchingRankIndex + 1 : null,\n      top1_similarity: Number(results[0]?.similarity ?? 0),\n      recall_at_1: matchingRankIndex === 0 ? 1 : 0,\n      recall_at_3: matchingRankIndex >= 0 && matchingRankIndex < 3 ? 1 : 0,\n      reciprocal_rank: matchingRankIndex >= 0 ? 1 / (matchingRankIndex + 1) : 0,\n      latency_ms: Number(searchOutput.latency_ms ?? 0)\n    },\n    pairedItem: { item: index }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "88655a21-1169-4408-a599-53d17023d1f2",
+      "name": "Score Retrieval"
+    },
+    {
+      "parameters": {
+        "jsCode": "const cases = $input.all().map((item) => item.json);\n\nif (cases.length === 0) {\n  throw new Error('The evaluation produced no scored cases');\n}\n\nconst round = (value, digits = 4) => Number(value.toFixed(digits));\nconst average = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;\n\nconst recallAt1 = average(cases.map((item) => item.recall_at_1));\nconst recallAt3 = average(cases.map((item) => item.recall_at_3));\nconst meanReciprocalRank = average(cases.map((item) => item.reciprocal_rank));\nconst averageLatencyMs = average(cases.map((item) => item.latency_ms));\nconst averageTop1Similarity = average(cases.map((item) => item.top1_similarity));\n\nconst sortedLatencies = cases\n  .map((item) => item.latency_ms)\n  .sort((a, b) => a - b);\nconst p95Index = Math.max(0, Math.ceil(sortedLatencies.length * 0.95) - 1);\nconst p95LatencyMs = sortedLatencies[p95Index];\n\nconst thresholds = {\n  recall_at_1: 0.80,\n  recall_at_3: 0.95,\n  mean_reciprocal_rank: 0.85\n};\n\nconst thresholdChecks = {\n  recall_at_1: recallAt1 >= thresholds.recall_at_1,\n  recall_at_3: recallAt3 >= thresholds.recall_at_3,\n  mean_reciprocal_rank: meanReciprocalRank >= thresholds.mean_reciprocal_rank\n};\n\nconst failures = cases\n  .filter((item) => item.recall_at_3 === 0)\n  .map((item) => ({\n    test_id: item.test_id,\n    category: item.category,\n    query: item.query,\n    acceptable_document_codes: item.acceptable_document_codes,\n    actual_top5_document_codes: item.actual_top5_document_codes,\n    top1_similarity: item.top1_similarity\n  }));\n\nreturn [{\n  json: {\n    evaluation_name: 'AcmeCloud RAG retrieval baseline',\n    evaluated_at: new Date().toISOString(),\n    total_cases: cases.length,\n    status: Object.values(thresholdChecks).every(Boolean) ? 'PASS' : 'FAIL',\n    metrics: {\n      recall_at_1: round(recallAt1),\n      recall_at_3: round(recallAt3),\n      mean_reciprocal_rank: round(meanReciprocalRank),\n      average_top1_similarity: round(averageTop1Similarity),\n      average_latency_ms: Math.round(averageLatencyMs),\n      p95_latency_ms: Math.round(p95LatencyMs)\n    },\n    thresholds,\n    threshold_checks: thresholdChecks,\n    failed_at_3_count: failures.length,\n    failures,\n    cases\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        280,
+        0
+      ],
+      "id": "54a55477-c985-429c-9c9b-bef8c2b9f9f1",
+      "name": "Build Evaluation Summary"
+    }
+  ],
+  "connections": {
+    "Run RAG Evaluation": {
+      "main": [
+        [
+          {
+            "node": "Build Evaluation Cases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Evaluation Cases": {
+      "main": [
+        [
+          {
+            "node": "Search Knowledge for Each Case",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Knowledge for Each Case": {
+      "main": [
+        [
+          {
+            "node": "Score Retrieval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score Retrieval": {
+      "main": [
+        [
+          {
+            "node": "Build Evaluation Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "89956ccf-980c-4655-9bba-02915ddd0a6a",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "pinData": {},
+  "tags": []
+}

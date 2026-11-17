@@ -1,0 +1,145 @@
+{
+  "name": "AcmeCloud - Knowledge Base Ingestion",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node: Run Once for All Items\n// Input: binary Markdown files from Read/Write Files from Disk.\n// Output: one JSON item per final hybrid chunk.\n\nconst inputItems = $input.all();\nconst chunks = [];\n\n// Qwen's exact tokenizer is not available inside the n8n Code node, so this\n// uses the common English-text approximation of four characters per token.\n// Heading boundaries remain authoritative; only oversized sections are split.\nconst MAX_ESTIMATED_TOKENS = 500;\nconst TARGET_ESTIMATED_TOKENS = 350;\nconst OVERLAP_ESTIMATED_TOKENS = 60;\n\nfunction capture(text, pattern, fallback = '') {\n  const match = text.match(pattern);\n  return match ? match[1].trim() : fallback;\n}\n\nfunction estimateTokens(text) {\n  return Math.max(1, Math.ceil(text.length / 4));\n}\n\nfunction splitByWords(text, targetTokens = TARGET_ESTIMATED_TOKENS) {\n  const words = text.trim().split(/\\s+/).filter(Boolean);\n  const pieces = [];\n  let current = '';\n\n  for (const word of words) {\n    const candidate = current ? `${current} ${word}` : word;\n    if (current && estimateTokens(candidate) > targetTokens) {\n      pieces.push(current);\n      current = word;\n    } else {\n      current = candidate;\n    }\n  }\n\n  if (current) {\n    pieces.push(current);\n  }\n\n  return pieces;\n}\n\nfunction splitOversizedParagraph(paragraph) {\n  if (estimateTokens(paragraph) <= TARGET_ESTIMATED_TOKENS) {\n    return [paragraph];\n  }\n\n  const sentences = paragraph.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? [paragraph];\n  const pieces = [];\n  let current = '';\n\n  for (const sentence of sentences) {\n    const cleanSentence = sentence.trim();\n\n    if (estimateTokens(cleanSentence) > TARGET_ESTIMATED_TOKENS) {\n      if (current) {\n        pieces.push(current);\n        current = '';\n      }\n      pieces.push(...splitByWords(cleanSentence));\n      continue;\n    }\n\n    const candidate = current ? `${current} ${cleanSentence}` : cleanSentence;\n    if (current && estimateTokens(candidate) > TARGET_ESTIMATED_TOKENS) {\n      pieces.push(current);\n      current = cleanSentence;\n    } else {\n      current = candidate;\n    }\n  }\n\n  if (current) {\n    pieces.push(current);\n  }\n\n  return pieces;\n}\n\nfunction paragraphBlocks(content) {\n  const paragraphs = content\n    .split(/\\n{2,}/)\n    .map((value) => value.trim())\n    .filter(Boolean);\n\n  const blocks = [];\n  for (let index = 0; index < paragraphs.length; index += 1) {\n    const paragraph = paragraphs[index];\n\n    // Keep a Markdown subheading attached to the paragraph that follows it.\n    if (/^###\\s+/.test(paragraph) && paragraphs[index + 1]) {\n      blocks.push(`${paragraph}\\n\\n${paragraphs[index + 1]}`);\n      index += 1;\n      continue;\n    }\n\n    blocks.push(paragraph);\n  }\n\n  return blocks.flatMap(splitOversizedParagraph);\n}\n\nfunction splitSection(content) {\n  if (estimateTokens(content) <= MAX_ESTIMATED_TOKENS) {\n    return [content];\n  }\n\n  const blocks = paragraphBlocks(content);\n  const parts = [];\n  let currentBlocks = [];\n\n  for (const block of blocks) {\n    const candidate = [...currentBlocks, block].join('\\n\\n');\n\n    if (currentBlocks.length && estimateTokens(candidate) > TARGET_ESTIMATED_TOKENS) {\n      parts.push(currentBlocks.join('\\n\\n').trim());\n\n      const overlap = [];\n      let overlapTokens = 0;\n      for (let index = currentBlocks.length - 1; index >= 0; index -= 1) {\n        const blockTokens = estimateTokens(currentBlocks[index]);\n        if (overlapTokens + blockTokens > OVERLAP_ESTIMATED_TOKENS) {\n          break;\n        }\n        overlap.unshift(currentBlocks[index]);\n        overlapTokens += blockTokens;\n      }\n\n      currentBlocks = overlap;\n    }\n\n    // If overlap plus the new block would exceed the hard limit, discard the\n    // overlap. Retrieval context is useful, but respecting the limit wins.\n    if (estimateTokens([...currentBlocks, block].join('\\n\\n')) > MAX_ESTIMATED_TOKENS) {\n      currentBlocks = [];\n    }\n\n    currentBlocks.push(block);\n  }\n\n  if (currentBlocks.length) {\n    parts.push(currentBlocks.join('\\n\\n').trim());\n  }\n\n  return parts.filter(Boolean);\n}\n\nfor (let itemIndex = 0; itemIndex < inputItems.length; itemIndex += 1) {\n  const item = inputItems[itemIndex];\n  const binaryField = Object.keys(item.binary ?? {})[0];\n\n  if (!binaryField) {\n    throw new Error(`Input item ${itemIndex} does not contain a binary Markdown file`);\n  }\n\n  const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, binaryField);\n  const sourceText = buffer.toString('utf8').replace(/\\r\\n/g, '\\n');\n  const fileName = item.binary[binaryField].fileName ?? `knowledge-${itemIndex}.md`;\n\n  const title = capture(sourceText, /^#\\s+(.+)$/m);\n  const documentCode = capture(sourceText, /^Document ID:\\s*(.+)$/mi);\n  const version = capture(sourceText, /^Version:\\s*(.+)$/mi, '1.0');\n  const audienceText = capture(sourceText, /^Audience:\\s*(.+)$/mi);\n  const tagsText = capture(sourceText, /^Tags:\\s*(.+)$/mi);\n  const purpose = capture(sourceText, /^\\*\\*Purpose:\\*\\*\\s*(.+)$/mi);\n\n  if (!title || !documentCode) {\n    throw new Error(`Missing title or Document ID in ${fileName}`);\n  }\n\n  const audience = audienceText\n    .split(/,|\\band\\b/i)\n    .map((value) => value.trim())\n    .filter(Boolean);\n\n  const tags = tagsText\n    .split(',')\n    .map((value) => value.trim())\n    .filter(Boolean);\n\n  const headings = [...sourceText.matchAll(/^##\\s+(.+)$/gm)];\n  const documentChunkStart = chunks.length;\n  let outputChunkIndex = 0;\n\n  headings.forEach((heading, sectionIndex) => {\n    const sectionHeading = heading[1].trim();\n    const sectionStart = heading.index + heading[0].length;\n    const sectionEnd = headings[sectionIndex + 1]?.index ?? sourceText.length;\n    const content = sourceText.slice(sectionStart, sectionEnd).trim();\n    const numbered = sectionHeading.match(/^(\\d+)\\.\\s*(.+)$/);\n    const sectionNumber = numbered ? numbered[1] : String(sectionIndex + 1);\n    const sectionTitle = numbered ? numbered[2].trim() : sectionHeading;\n\n    const sectionParts = splitSection(content);\n\n    sectionParts.forEach((partContent, partIndex) => {\n      const estimatedTokens = estimateTokens(partContent);\n      const metadata = {\n        company_id: 'acmecloud',\n        document_code: documentCode,\n        title,\n        version,\n        status: 'approved',\n        section_number: sectionNumber,\n        section_title: sectionTitle,\n        section_part: partIndex + 1,\n        section_parts: sectionParts.length,\n        estimated_tokens: estimatedTokens,\n        chunking_strategy: 'heading-paragraph-token-aware',\n        tags,\n        source_file: fileName,\n      };\n\n      const embeddingInput = [\n        'AcmeCloud customer-support knowledge base',\n        `Document: ${title}`,\n        `Document ID: ${documentCode}`,\n        `Version: ${version}`,\n        `Section: ${sectionHeading}`,\n        sectionParts.length > 1 ? `Part: ${partIndex + 1} of ${sectionParts.length}` : '',\n        tags.length ? `Tags: ${tags.join(', ')}` : '',\n        '',\n        partContent,\n      ].filter((line) => line !== '').join('\\n');\n\n      chunks.push({\n        json: {\n          company_id: 'acmecloud',\n          document_code: documentCode,\n          title,\n          version,\n          status: 'approved',\n          purpose,\n          audience,\n          tags,\n          source_path: `/home/node/.n8n-files/acmecloud-kb/${fileName}`,\n          source_content: sourceText,\n          chunk_index: outputChunkIndex,\n          section_number: sectionNumber,\n          section_title: sectionTitle,\n          section_part: partIndex + 1,\n          section_parts: sectionParts.length,\n          estimated_tokens: estimatedTokens,\n          content: partContent,\n          metadata,\n          embedding_input: embeddingInput,\n        },\n        pairedItem: { item: itemIndex },\n      });\n\n      outputChunkIndex += 1;\n    });\n  });\n\n  // Every chunk carries the final count for its document. The Postgres upsert\n  // uses this value to remove old trailing chunks when a document gets shorter.\n  const documentChunkCount = chunks.length - documentChunkStart;\n  for (let chunkPosition = documentChunkStart; chunkPosition < chunks.length; chunkPosition += 1) {\n    chunks[chunkPosition].json.document_chunk_count = documentChunkCount;\n    chunks[chunkPosition].json.metadata.document_chunk_count = documentChunkCount;\n  }\n}\n\nreturn chunks;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -672,
+        -48
+      ],
+      "id": "ffeaa473-17ca-4a8d-b43a-e762ea4f4381",
+      "name": "Parse Markdown into Chunks"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1120,
+        -48
+      ],
+      "id": "6ce42780-fc47-405b-9fde-e8677a658924",
+      "name": "Start"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/home/node/.n8n-files/acmecloud-kb/*.md",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        -896,
+        -48
+      ],
+      "id": "5a6cec5d-3510-4245-894b-2c08778cb3fc",
+      "name": "Read Company Documents"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/embed",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  {\n    model: \"qwen3-embedding:0.6b\",\n    input: $json.embedding_input\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -448,
+        -48
+      ],
+      "id": "1b4c0a65-8453-4deb-a760-cc273b63c8b8",
+      "name": "Embed the Chunks"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "with document_row as (\n  insert into public.knowledge_documents (\n    company_id,\n    document_code,\n    title,\n    version,\n    status,\n    purpose,\n    audience,\n    tags,\n    source_path,\n    source_hash\n  )\n  values (\n    $1,\n    $2,\n    $3,\n    $4,\n    $5,\n    $6,\n    $7::text[],\n    $8::text[],\n    $9,\n    md5($10)\n  )\n  on conflict (company_id, document_code, version)\n  do update set\n    title = excluded.title,\n    status = excluded.status,\n    purpose = excluded.purpose,\n    audience = excluded.audience,\n    tags = excluded.tags,\n    source_path = excluded.source_path,\n    source_hash = excluded.source_hash,\n    ingested_at = now(),\n    updated_at = now()\n  returning id\n),\nupserted_chunk as (\n  insert into public.knowledge_chunks (\n    document_id,\n    chunk_index,\n    section_number,\n    section_title,\n    content,\n    metadata,\n    content_hash,\n    embedding\n  )\n  select\n    document_row.id,\n    $11,\n    $12,\n    $13,\n    $14,\n    $15::jsonb,\n    md5($14),\n    $16::extensions.vector\n  from document_row\n  on conflict (document_id, chunk_index)\n  do update set\n    section_number = excluded.section_number,\n    section_title = excluded.section_title,\n    content = excluded.content,\n    metadata = excluded.metadata,\n    content_hash = excluded.content_hash,\n    embedding = excluded.embedding,\n    updated_at = now()\n  returning id, document_id, chunk_index, section_title\n),\nstale_chunk_cleanup as (\n  delete from public.knowledge_chunks existing_chunk\n  using document_row\n  where existing_chunk.document_id = document_row.id\n    and existing_chunk.chunk_index >= $17::integer\n  returning existing_chunk.id\n)\nselect id, document_id, chunk_index, section_title\nfrom upserted_chunk;\n",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [\n  $('Parse Markdown into Chunks').item.json.company_id,\n  $('Parse Markdown into Chunks').item.json.document_code,\n  $('Parse Markdown into Chunks').item.json.title,\n  $('Parse Markdown into Chunks').item.json.version,\n  $('Parse Markdown into Chunks').item.json.status,\n  $('Parse Markdown into Chunks').item.json.purpose,\n  $('Parse Markdown into Chunks').item.json.audience,\n  $('Parse Markdown into Chunks').item.json.tags,\n  $('Parse Markdown into Chunks').item.json.source_path,\n  $('Parse Markdown into Chunks').item.json.source_content,\n  $('Parse Markdown into Chunks').item.json.chunk_index,\n  $('Parse Markdown into Chunks').item.json.section_number,\n  $('Parse Markdown into Chunks').item.json.section_title,\n  $('Parse Markdown into Chunks').item.json.content,\n  JSON.stringify($('Parse Markdown into Chunks').item.json.metadata),\n  '[' + $json.embeddings[0].join(',') + ']',\n  $('Parse Markdown into Chunks').item.json.document_chunk_count\n] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.8,
+      "position": [
+        -224,
+        -48
+      ],
+      "id": "78cbc614-d6c8-46f5-a6df-513f216a8a98",
+      "name": "Save Embeddings to pgvector",
+      "credentials": {
+        "postgres": {
+          "id": "gMahy3J12DjwyTqz",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Parse Markdown into Chunks": {
+      "main": [
+        [
+          {
+            "node": "Embed the Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Read Company Documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Company Documents": {
+      "main": [
+        [
+          {
+            "node": "Parse Markdown into Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embed the Chunks": {
+      "main": [
+        [
+          {
+            "node": "Save Embeddings to pgvector",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "f1cb88b7-bbd7-4861-b998-260d8a27fafb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1485c43aca9a95010abcc0d1d57b967a90069569b026be708676233f607a46d7"
+  },
+  "nodeGroups": [],
+  "id": "DJyv87rbwyKGvgsM",
+  "tags": []
+}

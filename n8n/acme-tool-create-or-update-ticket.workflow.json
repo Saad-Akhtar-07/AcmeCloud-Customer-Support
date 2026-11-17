@@ -1,0 +1,264 @@
+{
+  "name": "ACME – Tool – Create or Update Ticket",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "request_id"
+            },
+            {
+              "name": "customer_id"
+            },
+            {
+              "name": "contact_email"
+            },
+            {
+              "name": "subject"
+            },
+            {
+              "name": "description"
+            },
+            {
+              "name": "issue_category"
+            },
+            {
+              "name": "issue_severity"
+            },
+            {
+              "name": "ai_handling_status"
+            },
+            {
+              "name": "requires_human_approval",
+              "type": "boolean"
+            },
+            {
+              "name": "escalation_reason"
+            },
+            {
+              "name": "resolution_type"
+            },
+            {
+              "name": "resolution_summary"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -256,
+        16
+      ],
+      "id": "852fe5a1-4769-4bfb-b452-c22720b31fa4",
+      "name": "Receive Ticket State"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const clean = (value, max = 5000) => String(value ?? '').trim().slice(0, max);\nconst norm = value => String(value ?? '').trim().toLowerCase();\n\nconst requestId = clean($json.request_id, 64).toUpperCase();\nconst customerId = clean($json.customer_id, 64).toUpperCase();\nconst contactEmail = clean($json.contact_email, 254).toLowerCase();\nconst subject = clean($json.subject, 200);\nconst description = clean($json.description, 5000);\nconst issueCategory = clean($json.issue_category, 64);\nconst issueSeverity = clean($json.issue_severity, 16);\nlet aiStatus = clean($json.ai_handling_status, 64) || 'Not Started';\nconst resolutionType = clean($json.resolution_type, 32) || 'Unresolved';\nconst resolutionSummary = clean($json.resolution_summary, 2000);\nconst rawEscalationReason = clean($json.escalation_reason, 100);\n\nconst rawApproval = $json.requires_human_approval;\nlet requiresApproval = rawApproval === true || ['true', 'yes', '1'].includes(norm(rawApproval));\n\nconst categories = ['Subscription','Billing','Refund','Account Access','Technical Support','Cancellation','Security','General Question','Other'];\nconst severities = ['Low','Medium','High','Critical'];\nconst statuses = ['Not Started','Investigating','Waiting for Tool','Waiting for Approval','Waiting for Customer','Completed','Failed','Escalated'];\nconst resolutionTypes = ['AI Resolved','Human Resolved','AI + Human','Unresolved'];\n\nconst stageByStatus = {\n  'Not Started': { id: '4650337004', label: 'New Request' },\n  'Investigating': { id: '4650337005', label: 'AI Investigating' },\n  'Waiting for Tool': { id: '4650337005', label: 'AI Investigating' },\n  'Waiting for Approval': { id: '4650337006', label: 'Human Review' },\n  'Waiting for Customer': { id: '4650337007', label: 'Waiting on Customer' },\n  'Completed': { id: '4650337008', label: 'Resolved' },\n  'Failed': { id: '4650337006', label: 'Human Review' },\n  'Escalated': { id: '4650337006', label: 'Human Review' }\n};\n\nconst severityValue = {\n  Low: 'low',\n  Medium: 'medium',\n  High: 'high',\n  Critical: 'critical'\n};\n\nconst priorityValue = {\n  Low: 'LOW',\n  Medium: 'MEDIUM',\n  High: 'HIGH',\n  Critical: 'URGENT'\n};\n\nconst escalationReasonByInput = {\n  'technical complexity': 'technical_complexity',\n  technical_complexity: 'technical_complexity',\n  'customer request': 'customer_request',\n  customer_request: 'customer_request',\n  'policy requirement': 'policy_requirement',\n  policy_requirement: 'policy_requirement',\n  'ai limitation': 'ai_limitation',\n  ai_limitation: 'ai_limitation'\n};\n\nif (!/^[A-Z0-9][A-Z0-9_-]{4,63}$/.test(requestId)) throw new Error('request_id must be a stable 5-64 character key');\nif (!/^[A-Z0-9][A-Z0-9_-]{1,63}$/.test(customerId)) throw new Error('customer_id is invalid');\nif (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(contactEmail)) throw new Error('contact_email is invalid');\nif (subject.length < 5) throw new Error('subject must contain at least 5 characters');\nif (!description) throw new Error('description is required');\nif (!categories.includes(issueCategory)) throw new Error(`Invalid issue_category: ${issueCategory}`);\nif (!severities.includes(issueSeverity)) throw new Error(`Invalid issue_severity: ${issueSeverity}`);\nif (!statuses.includes(aiStatus)) throw new Error(`Invalid ai_handling_status: ${aiStatus}`);\nif (!resolutionTypes.includes(resolutionType)) throw new Error(`Invalid resolution_type: ${resolutionType}`);\n\nif (aiStatus === 'Waiting for Approval') requiresApproval = true;\nif (requiresApproval && aiStatus !== 'Waiting for Approval') aiStatus = 'Waiting for Approval';\n\nconst needsHumanReview = ['Waiting for Approval', 'Escalated', 'Failed'].includes(aiStatus);\nconst escalationReason = rawEscalationReason ? escalationReasonByInput[norm(rawEscalationReason)] : '';\n\nif (rawEscalationReason && !escalationReason) {\n  throw new Error('escalation_reason must be Technical complexity, Customer request, Policy requirement, or AI limitation');\n}\nif (needsHumanReview && !escalationReason) {\n  throw new Error('escalation_reason is required for Human Review');\n}\nif (aiStatus === 'Completed' && resolutionType === 'Unresolved') throw new Error('Completed tickets need a resolved resolution_type');\nif (aiStatus === 'Completed' && !resolutionSummary) throw new Error('Completed tickets need a resolution_summary');\n\nconst stage = stageByStatus[aiStatus];\nconst input = {\n  request_id: requestId,\n  customer_id: customerId,\n  contact_email: contactEmail,\n  subject,\n  description,\n  issue_category: issueCategory,\n  issue_severity: issueSeverity,\n  ai_handling_status: aiStatus,\n  requires_human_approval: requiresApproval,\n  escalation_reason: escalationReason,\n  resolution_type: resolutionType,\n  resolution_summary: resolutionSummary,\n  pipeline_label: 'Enterprise Support',\n  pipeline_id: '0',\n  pipeline_stage_id: stage.id,\n  pipeline_stage_label: stage.label,\n  started_at_ms: Date.now()\n};\n\nconst ticketProperties = {\n  subject: input.subject,\n  content: input.description,\n  hs_pipeline: input.pipeline_id,\n  hs_pipeline_stage: input.pipeline_stage_id,\n  hs_ticket_priority: priorityValue[input.issue_severity],\n  request_id: input.request_id,\n  issue_category: input.issue_category,\n  issue_severity: severityValue[input.issue_severity],\n  ai_handling_status: input.ai_handling_status,\n  requires_human_approval: input.requires_human_approval ? 'Yes' : 'No',\n  escalation_reason: input.escalation_reason,\n  resolution_type: input.resolution_type,\n  resolution_summary: input.resolution_summary\n};\n\nreturn { json: {\n  input,\n  ticket_properties: ticketProperties,\n  contact_search_body: {\n    filterGroups: [{ filters: [{ propertyName: 'email', operator: 'EQ', value: input.contact_email }] }],\n    properties: ['email','firstname','lastname','customer_id'],\n    limit: 2\n  },\n  ticket_search_body: {\n    filterGroups: [{ filters: [{ propertyName: 'request_id', operator: 'EQ', value: input.request_id }] }],\n    properties: ['subject','content','hs_pipeline','hs_pipeline_stage','hs_ticket_priority','request_id','issue_category','issue_severity','ai_handling_status','requires_human_approval','escalation_reason','resolution_type','resolution_summary'],\n    limit: 2\n  }\n} };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -32,
+        16
+      ],
+      "id": "5afda537-5728-4bd0-a411-c4b1da55e09c",
+      "name": "Validate Ticket State"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/objects/2026-09/contacts/search",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json.contact_search_body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1088,
+        16
+      ],
+      "id": "325eee52-8c31-475e-8059-ebf137537c88",
+      "name": "Find Contact for Ticket"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/objects/2026-09/tickets/search",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($('Validate Ticket State').first().json.ticket_search_body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1312,
+        16
+      ],
+      "id": "39cb15b6-0702-4afc-a955-2693265cb264",
+      "name": "Find Ticket by Request ID"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const config = $('Validate Ticket State').first().json;\nconst input = config.input;\nconst contactResponse = $('Find Contact for Ticket').first().json ?? {};\nconst ticketResponse = $json ?? {};\n\nconst contacts = Array.isArray(contactResponse.results) ? contactResponse.results : [];\nconst tickets = Array.isArray(ticketResponse.results) ? ticketResponse.results : [];\n\nif (contacts.length !== 1) throw new Error(`Expected exactly one HubSpot contact for ${input.contact_email}; found ${contacts.length}`);\nif (tickets.length > 1) throw new Error(`Duplicate HubSpot tickets found for request_id ${input.request_id}`);\n\nconst existing = tickets[0] ?? null;\nconst contactId = contacts[0].id;\nconst createBody = {\n  properties: config.ticket_properties,\n  associations: [{\n    to: { id: contactId },\n    types: [{\n      associationCategory: 'HUBSPOT_DEFINED',\n      associationTypeId: 16\n    }]\n  }]\n};\n\nreturn { json: {\n  http_method: existing ? 'PATCH' : 'POST',\n  http_url: existing\n    ? `https://api.hubapi.com/crm/objects/2026-09/tickets/${encodeURIComponent(existing.id)}`\n    : 'https://api.hubapi.com/crm/objects/2026-09/tickets',\n  request_body: existing ? { properties: config.ticket_properties } : createBody,\n  action: existing ? 'updated' : 'created',\n  previous_ticket_id: existing?.id ?? null,\n  contact_id: contactId,\n  input\n} };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        16
+      ],
+      "id": "25f89775-decc-4699-a6f6-925ec1a9ae7a",
+      "name": "Prepare Idempotent Upsert"
+    },
+    {
+      "parameters": {
+        "method": "={{ $json.http_method }}",
+        "url": "={{ $json.http_url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json.request_body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1984,
+        16
+      ],
+      "id": "0975bb7d-209a-4b9f-a681-fc308761a00d",
+      "name": "Create or Update HubSpot Ticket"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const prepared = $('Prepare Idempotent Upsert').first().json;\nconst response = $json ?? {};\nif (!response.id) throw new Error('HubSpot did not return a ticket ID');\n\nreturn { json: {\n  success: true,\n  action: prepared.action,\n  ticket_id: response.id,\n  request_id: prepared.input.request_id,\n  customer_id: prepared.input.customer_id,\n  contact_id: prepared.contact_id,\n  ai_handling_status: prepared.input.ai_handling_status,\n  requires_human_approval: prepared.input.requires_human_approval,\n  pipeline: prepared.input.pipeline_label,\n  pipeline_stage: prepared.input.pipeline_stage_label,\n  verified_by_hubspot_response: true,\n  latency_ms: Date.now() - prepared.input.started_at_ms\n} };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2208,
+        16
+      ],
+      "id": "4a3155b1-93e8-4797-8b93-6193ebbb592a",
+      "name": "Return Ticket Result"
+    }
+  ],
+  "connections": {
+    "Receive Ticket State": {
+      "main": [
+        [
+          {
+            "node": "Validate Ticket State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Contact for Ticket": {
+      "main": [
+        [
+          {
+            "node": "Find Ticket by Request ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Idempotent Upsert": {
+      "main": [
+        [
+          {
+            "node": "Create or Update HubSpot Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create or Update HubSpot Ticket": {
+      "main": [
+        [
+          {
+            "node": "Return Ticket Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Ticket State": {
+      "main": [
+        [
+          {
+            "node": "Find Contact for Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Ticket by Request ID": {
+      "main": [
+        [
+          {
+            "node": "Prepare Idempotent Upsert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "active": false,
+  "versionId": "f3ad0704-a521-46ce-b46f-d2112feeefaf",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

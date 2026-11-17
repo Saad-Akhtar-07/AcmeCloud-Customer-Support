@@ -1,0 +1,228 @@
+{
+  "name": "ACME – Eval – All Five Tools",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-1088, 0],
+      "id": "10000000-0000-4000-8000-000000000001",
+      "name": "Run All Tool Tests"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: {\n  test_name: 'C101 subscription investigation',\n  started_at_ms: Date.now(),\n  query: 'I paid for Pro but my account is still Free',\n  top_k: 5,\n  email: 'aisha.khan@example.com',\n  customer_id: 'C101',\n  event_limit: 10,\n  request_id: 'REQ-TOOLS-C101-001',\n  subject: '[TEST] C101 paid Pro subscription is not active',\n  description: 'Automated five-tool evaluation. The customer reports that payment completed but the account still appears Free. This test only investigates and creates or updates the HubSpot test ticket; it does not retry activation.',\n  issue_category: 'Subscription',\n  issue_severity: 'High',\n  ai_handling_status: 'Investigating',\n  requires_human_approval: false,\n  escalation_reason: '',\n  resolution_type: 'Unresolved',\n  resolution_summary: ''\n} };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-864, 0],
+      "id": "10000000-0000-4000-8000-000000000002",
+      "name": "Build Controlled Test Case"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "7QhXzqQue1G0HnEK",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/7QhXzqQue1G0HnEK",
+          "cachedResultName": "ACME – Tool – Search Knowledge"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "query": "={{ $('Build Controlled Test Case').first().json.query }}",
+            "top_k": "={{ $('Build Controlled Test Case').first().json.top_k }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            { "id": "query", "displayName": "query", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false },
+            { "id": "top_k", "displayName": "top_k", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "number", "removed": false }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": { "waitForSubWorkflow": true }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.4,
+      "position": [-640, 0],
+      "id": "10000000-0000-4000-8000-000000000003",
+      "name": "Test 1 - Search Knowledge",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "iJa8p5CzOeEjJiJg",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/iJa8p5CzOeEjJiJg",
+          "cachedResultName": "ACME – Tool – Get Customer"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "email": "={{ $('Build Controlled Test Case').first().json.email }}",
+            "customer_id": "={{ $('Build Controlled Test Case').first().json.customer_id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            { "id": "email", "displayName": "email", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false },
+            { "id": "customer_id", "displayName": "customer_id", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": { "waitForSubWorkflow": true }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.4,
+      "position": [-416, 0],
+      "id": "10000000-0000-4000-8000-000000000004",
+      "name": "Test 2 - Get Customer",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "arFc2kGiQEFHZUUU",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/arFc2kGiQEFHZUUU",
+          "cachedResultName": "ACME – Tool – Get Subscription"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "customer_id": "={{ $('Build Controlled Test Case').first().json.customer_id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            { "id": "customer_id", "displayName": "customer_id", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": { "waitForSubWorkflow": true }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.4,
+      "position": [-192, 0],
+      "id": "10000000-0000-4000-8000-000000000005",
+      "name": "Test 3 - Get Subscription",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "RbRQEkERBkTyjzO5",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/RbRQEkERBkTyjzO5",
+          "cachedResultName": "ACME – Tool – Get Recent Events"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "customer_id": "={{ $('Build Controlled Test Case').first().json.customer_id }}",
+            "limit": "={{ $('Build Controlled Test Case').first().json.event_limit }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            { "id": "customer_id", "displayName": "customer_id", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false },
+            { "id": "limit", "displayName": "limit", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "number", "removed": false }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": { "waitForSubWorkflow": true }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.4,
+      "position": [32, 0],
+      "id": "10000000-0000-4000-8000-000000000006",
+      "name": "Test 4 - Get Recent Events",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "4fDShQS242hmyot8",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/4fDShQS242hmyot8",
+          "cachedResultName": "ACME – Tool – Create or Update Ticket"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "request_id": "={{ $('Build Controlled Test Case').first().json.request_id }}",
+            "customer_id": "={{ $('Build Controlled Test Case').first().json.customer_id }}",
+            "contact_email": "={{ $('Build Controlled Test Case').first().json.email }}",
+            "subject": "={{ $('Build Controlled Test Case').first().json.subject }}",
+            "description": "={{ $('Build Controlled Test Case').first().json.description }}",
+            "issue_category": "={{ $('Build Controlled Test Case').first().json.issue_category }}",
+            "issue_severity": "={{ $('Build Controlled Test Case').first().json.issue_severity }}",
+            "ai_handling_status": "={{ $('Build Controlled Test Case').first().json.ai_handling_status }}",
+            "requires_human_approval": "={{ $('Build Controlled Test Case').first().json.requires_human_approval }}",
+            "escalation_reason": "={{ $('Build Controlled Test Case').first().json.escalation_reason }}",
+            "resolution_type": "={{ $('Build Controlled Test Case').first().json.resolution_type }}",
+            "resolution_summary": "={{ $('Build Controlled Test Case').first().json.resolution_summary }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            { "id": "request_id", "displayName": "request_id", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false },
+            { "id": "customer_id", "displayName": "customer_id", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false },
+            { "id": "contact_email", "displayName": "contact_email", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false },
+            { "id": "subject", "displayName": "subject", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false },
+            { "id": "description", "displayName": "description", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false },
+            { "id": "issue_category", "displayName": "issue_category", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false },
+            { "id": "issue_severity", "displayName": "issue_severity", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false },
+            { "id": "ai_handling_status", "displayName": "ai_handling_status", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false },
+            { "id": "requires_human_approval", "displayName": "requires_human_approval", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "boolean", "removed": false },
+            { "id": "escalation_reason", "displayName": "escalation_reason", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false },
+            { "id": "resolution_type", "displayName": "resolution_type", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false },
+            { "id": "resolution_summary", "displayName": "resolution_summary", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": { "waitForSubWorkflow": true }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.4,
+      "position": [256, 0],
+      "id": "10000000-0000-4000-8000-000000000007",
+      "name": "Test 5 - Create or Update Ticket",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const test = $('Build Controlled Test Case').first().json;\nconst outputOf = name => {\n  try { return $(name).first().json ?? {}; } catch (error) { return { error: error.message }; }\n};\n\nconst knowledge = outputOf('Test 1 - Search Knowledge');\nconst customer = outputOf('Test 2 - Get Customer');\nconst subscription = outputOf('Test 3 - Get Subscription');\nconst events = outputOf('Test 4 - Get Recent Events');\nconst ticket = outputOf('Test 5 - Create or Update Ticket');\n\nconst retrievedDocumentCodes = Array.isArray(knowledge.results)\n  ? knowledge.results.map(result => result.document_code).filter(Boolean)\n  : [];\n\nconst checks = [\n  {\n    tool: 'search_knowledge',\n    passed: knowledge.found === true && Number(knowledge.result_count) > 0 && retrievedDocumentCodes.includes('KB-SUB-001'),\n    expected: 'At least one result including KB-SUB-001',\n    observed: { found: knowledge.found, result_count: knowledge.result_count, document_codes: retrievedDocumentCodes }\n  },\n  {\n    tool: 'get_customer',\n    passed: customer.found === true && customer.customer?.customer_id === test.customer_id && customer.hubspot?.found === true && customer.data_consistency === 'matched',\n    expected: 'C101 exists in Supabase and HubSpot with matching data',\n    observed: { found: customer.found, customer_id: customer.customer?.customer_id, hubspot_found: customer.hubspot?.found, data_consistency: customer.data_consistency, mismatched_fields: customer.mismatched_fields }\n  },\n  {\n    tool: 'get_subscription',\n    passed: subscription.found === true && subscription.customer_found === true && subscription.subscription?.customer_id === test.customer_id,\n    expected: 'C101 has a readable subscription',\n    observed: { found: subscription.found, customer_found: subscription.customer_found, subscription: subscription.subscription }\n  },\n  {\n    tool: 'get_recent_events',\n    passed: events.found === true && Number(events.event_count) > 0 && Array.isArray(events.events),\n    expected: 'C101 exists and has at least one recent event',\n    observed: { found: events.found, event_count: events.event_count, newest_event: events.events?.[0] ?? null }\n  },\n  {\n    tool: 'create_or_update_ticket',\n    passed: ticket.success === true && ['created', 'updated'].includes(ticket.action) && Boolean(ticket.ticket_id) && ticket.request_id === test.request_id,\n    expected: 'One test ticket is created or the existing request-ID ticket is updated',\n    observed: { success: ticket.success, action: ticket.action, ticket_id: ticket.ticket_id, request_id: ticket.request_id, pipeline_stage: ticket.pipeline_stage }\n  }\n];\n\nconst passedCount = checks.filter(check => check.passed).length;\nconst failedChecks = checks.filter(check => !check.passed).map(check => check.tool);\n\nreturn [{ json: {\n  test_name: test.test_name,\n  overall_status: passedCount === checks.length ? 'PASS' : 'FAIL',\n  all_tools_passed: passedCount === checks.length,\n  passed: passedCount,\n  failed: checks.length - passedCount,\n  failed_tools: failedChecks,\n  total_tools: checks.length,\n  total_latency_ms: Date.now() - test.started_at_ms,\n  checks,\n  outputs: {\n    search_knowledge: knowledge,\n    get_customer: customer,\n    get_subscription: subscription,\n    get_recent_events: events,\n    create_or_update_ticket: ticket\n  },\n  cleanup_note: `HubSpot contains the reusable test ticket with request ID ${test.request_id}. Delete it manually when you no longer need the evaluation fixture.`\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 0],
+      "id": "10000000-0000-4000-8000-000000000008",
+      "name": "Build Five-Tool Test Report"
+    }
+  ],
+  "connections": {
+    "Run All Tool Tests": { "main": [[{ "node": "Build Controlled Test Case", "type": "main", "index": 0 }]] },
+    "Build Controlled Test Case": { "main": [[{ "node": "Test 1 - Search Knowledge", "type": "main", "index": 0 }]] },
+    "Test 1 - Search Knowledge": { "main": [[{ "node": "Test 2 - Get Customer", "type": "main", "index": 0 }]] },
+    "Test 2 - Get Customer": { "main": [[{ "node": "Test 3 - Get Subscription", "type": "main", "index": 0 }]] },
+    "Test 3 - Get Subscription": { "main": [[{ "node": "Test 4 - Get Recent Events", "type": "main", "index": 0 }]] },
+    "Test 4 - Get Recent Events": { "main": [[{ "node": "Test 5 - Create or Update Ticket", "type": "main", "index": 0 }]] },
+    "Test 5 - Create or Update Ticket": { "main": [[{ "node": "Build Five-Tool Test Report", "type": "main", "index": 0 }]] }
+  },
+  "pinData": {},
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "versionId": "10000000-0000-4000-8000-000000000099",
+  "meta": { "templateCredsSetupCompleted": true },
+  "tags": []
+}
