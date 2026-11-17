@@ -27,14 +27,23 @@ Find the URL and anon key in Supabase under **Project Settings → API**.
 
 ## n8n configuration
 
-The `ACME – Agent – Customer Support` workflow reads these variables from the n8n server:
+The credential-free workflow export uses these n8n server variables:
 
 ```env
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-supabase-anon-key
 ```
 
-Add them to the n8n process or Docker Compose environment and restart n8n. The values must match the frontend project.
+Add them to the n8n process or Docker Compose environment and restart n8n. The values must match the frontend project. Environment access must be enabled for n8n node expressions.
+
+If environment access is blocked, configure `Verify Supabase Session` with the public project URL and a Generic Header Auth credential:
+
+```text
+Header name: apikey
+Header value: your Supabase anon key
+```
+
+Keep the browser bearer-token header as a dynamic expression. Never put the service-role key in this workflow or the React app.
 
 After configuration:
 

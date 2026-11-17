@@ -15,7 +15,7 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.2,
       "position": [
-        -1280,
+        -2000,
         0
       ],
       "webhookId": "615ecc2f-ed79-42f6-9094-8f375309636f"
@@ -23,7 +23,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const source = $json.body ?? $json;\nconst clean = (value, max) => String(value ?? '').trim().slice(0, max);\n\nconst conversationId = clean(source.conversation_id, 100);\nconst customerId = clean(source.customer_id, 64).toUpperCase();\nconst email = clean(source.email, 254).toLowerCase();\nconst message = clean(source.message, 4000);\nconst channel = clean(source.channel || 'web_chat', 32);\n\nif (!/^[A-Za-z0-9_-]{8,100}$/.test(conversationId)) {\n  throw new Error('conversation_id must contain 8-100 letters, numbers, hyphens, or underscores');\n}\nif (!/^[A-Z0-9][A-Z0-9_-]{1,63}$/.test(customerId)) {\n  throw new Error('customer_id is invalid');\n}\nif (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {\n  throw new Error('email is invalid');\n}\nif (message.length < 2) {\n  throw new Error('message must contain at least 2 characters');\n}\n\nconst conversationKey = conversationId\n  .replace(/[^A-Za-z0-9_-]/g, '-')\n  .toUpperCase()\n  .slice(0, 40);\nconst requestId = `REQ-${customerId}-${conversationKey}`.slice(0, 64);\n\nreturn { json: {\n  conversation_id: conversationId,\n  request_id: requestId,\n  customer_id: customerId,\n  email,\n  message,\n  channel,\n  received_at: new Date().toISOString()\n} };"
+        "jsCode": "const request = $('Extract Authenticated Request').first().json;\nconst source = request.body ?? {};\nconst authResponse = $('Verify Supabase Session').first().json;\nconst authUser = authResponse.body ?? authResponse;\nconst clean = (value, max) => String(value ?? '').trim().slice(0, max);\n\nconst conversationId = clean(source.conversation_id, 100);\nconst email = clean(authUser.email, 254).toLowerCase();\nconst message = clean(source.message, 4000);\nconst channel = clean(source.channel || 'web_chat', 32);\nconst authUserId = clean(authUser.id, 100);\n\nif (!authUserId || !email) {\n  throw new Error('Authenticated Supabase user is missing an id or email');\n}\nif (!/^[A-Za-z0-9_-]{8,100}$/.test(conversationId)) {\n  throw new Error('conversation_id must contain 8-100 letters, numbers, hyphens, or underscores');\n}\nif (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {\n  throw new Error('Authenticated email is invalid');\n}\nif (message.length < 2) {\n  throw new Error('message must contain at least 2 characters');\n}\n\nreturn { json: {\n  conversation_id: conversationId,\n  auth_user_id: authUserId,\n  email,\n  message,\n  channel,\n  received_at: new Date().toISOString()\n} };"
       },
       "id": "05a041fc-6de1-4c00-acd2-f40729c74fae",
       "name": "Validate Input",
@@ -47,7 +47,7 @@
           "mappingMode": "defineBelow",
           "value": {
             "email": "={{ $('Validate Input').first().json.email }}",
-            "customer_id": "={{ $('Validate Input').first().json.customer_id }}"
+            "customer_id": ""
           },
           "matchingColumns": [],
           "schema": [
@@ -136,14 +136,14 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
       "typeVersion": 1,
       "position": [
-        -352,
+        -144,
         448
       ]
     },
     {
       "parameters": {
         "sessionIdType": "customKey",
-        "sessionKey": "={{ $('Validate Input').first().json.conversation_id }}",
+        "sessionKey": "={{ $('Prepare Verified Request').first().json.customer_id + ':' + $('Prepare Verified Request').first().json.conversation_id }}",
         "tableName": "n8n_chat_histories_acme_support",
         "contextWindowLength": 8
       },
@@ -152,7 +152,7 @@
       "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
       "typeVersion": 1.4,
       "position": [
-        -144,
+        64,
         448
       ]
     },
@@ -204,7 +204,7 @@
       "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
       "typeVersion": 2.2,
       "position": [
-        64,
+        272,
         448
       ]
     },
@@ -221,7 +221,7 @@
         "workflowInputs": {
           "mappingMode": "defineBelow",
           "value": {
-            "customer_id": "={{ $('Validate Input').first().json.customer_id }}"
+            "customer_id": "={{ $('Prepare Verified Request').first().json.customer_id }}"
           },
           "matchingColumns": [],
           "schema": [
@@ -245,7 +245,7 @@
       "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
       "typeVersion": 2.2,
       "position": [
-        272,
+        480,
         448
       ]
     },
@@ -262,7 +262,7 @@
         "workflowInputs": {
           "mappingMode": "defineBelow",
           "value": {
-            "customer_id": "={{ $('Validate Input').first().json.customer_id }}",
+            "customer_id": "={{ $('Prepare Verified Request').first().json.customer_id }}",
             "limit": 10
           },
           "matchingColumns": [],
@@ -297,7 +297,7 @@
       "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
       "typeVersion": 2.2,
       "position": [
-        480,
+        688,
         448
       ]
     },
@@ -312,7 +312,7 @@
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.3,
       "position": [
-        688,
+        896,
         448
       ]
     },
@@ -336,21 +336,21 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 3.1,
       "position": [
-        -320,
+        -112,
         -64
       ]
     },
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const raw = $json.output ?? $json;\nlet decision = raw;\n\nif (typeof raw === 'string') {\n  try {\n    decision = JSON.parse(raw);\n  } catch {\n    throw new Error('Agent output was not valid JSON');\n  }\n}\n\nif (!decision || typeof decision !== 'object') {\n  throw new Error('Agent output is missing');\n}\nif (typeof decision.ready_for_ticket !== 'boolean') {\n  throw new Error('ready_for_ticket must be boolean');\n}\n\nconst input = $('Validate Input').first().json;\nconst customerResult = $('Get Verified Customer').first().json;\nconst clean = (value, max = 5000) => String(value ?? '').trim().slice(0, max);\n\nconst categories = ['Subscription','Billing','Refund','Account Access','Technical Support','Cancellation','Security','General Question','Other'];\nconst severities = ['Low','Medium','High','Critical'];\nconst statuses = ['Waiting for Customer','Investigating','Waiting for Approval','Completed','Failed','Escalated'];\nconst resolutionTypes = ['AI Resolved','Human Resolved','AI + Human','Unresolved'];\nconst escalationReasons = ['','technical_complexity','customer_request','policy_requirement','ai_limitation'];\n\nconst normalized = {\n  ready_for_ticket: decision.ready_for_ticket,\n  reply: clean(decision.reply, 2000),\n  missing_information: Array.isArray(decision.missing_information)\n    ? decision.missing_information.map(value => clean(value, 200)).filter(Boolean).slice(0, 5)\n    : [],\n  issue_category: clean(decision.issue_category, 64),\n  issue_severity: clean(decision.issue_severity, 16),\n  ai_handling_status: clean(decision.ai_handling_status, 64),\n  requires_human_approval: decision.requires_human_approval === true,\n  escalation_reason: clean(decision.escalation_reason, 64),\n  resolution_type: clean(decision.resolution_type, 32) || 'Unresolved',\n  subject: clean(decision.subject, 200),\n  description: clean(decision.description, 5000),\n  resolution_summary: clean(decision.resolution_summary, 2000),\n  policy_evidence: Array.isArray(decision.policy_evidence)\n    ? decision.policy_evidence.slice(0, 5).map(item => ({\n        document_code: clean(item?.document_code, 64),\n        section_title: clean(item?.section_title, 200)\n      })).filter(item => item.document_code && item.section_title)\n    : []\n};\n\nif (!normalized.reply) throw new Error('Agent reply is required');\nif (!statuses.includes(normalized.ai_handling_status)) throw new Error('Invalid AI handling status');\nif (!resolutionTypes.includes(normalized.resolution_type)) throw new Error('Invalid resolution type');\nif (!escalationReasons.includes(normalized.escalation_reason)) throw new Error('Invalid escalation reason');\n\nif (!normalized.ready_for_ticket) {\n  normalized.ai_handling_status = 'Waiting for Customer';\n  normalized.requires_human_approval = false;\n  normalized.escalation_reason = '';\n  normalized.resolution_type = 'Unresolved';\n}\n\nif (normalized.ready_for_ticket) {\n  if (!categories.includes(normalized.issue_category)) throw new Error('Ticket-ready output needs a valid issue category');\n  if (!severities.includes(normalized.issue_severity)) throw new Error('Ticket-ready output needs a valid issue severity');\n  if (normalized.issue_category === 'Refund' && ['Low', 'Medium'].includes(normalized.issue_severity)) {\n    normalized.issue_severity = 'High';\n  }\n  if (normalized.subject.length < 5) throw new Error('Ticket-ready output needs a subject');\n  if (!normalized.description) throw new Error('Ticket-ready output needs a description');\n  if (normalized.ai_handling_status === 'Waiting for Customer') throw new Error('Ticket-ready output cannot wait for customer');\n  if (['Waiting for Approval','Escalated','Failed'].includes(normalized.ai_handling_status) && !normalized.escalation_reason) {\n    throw new Error('Human Review output needs an escalation reason');\n  }\n  if (normalized.ai_handling_status === 'Waiting for Approval') {\n    normalized.requires_human_approval = true;\n  }\n  if (normalized.ai_handling_status === 'Completed') {\n    if (normalized.resolution_type !== 'AI Resolved') throw new Error('Completed AI case must use AI Resolved');\n    if (!normalized.resolution_summary) throw new Error('Completed case needs a resolution summary');\n  } else {\n    normalized.resolution_type = 'Unresolved';\n    normalized.resolution_summary = '';\n  }\n}\n\nreturn { json: {\n  ...input,\n  customer: customerResult.customer,\n  hubspot_contact_id: customerResult.hubspot?.contact_id ?? null,\n  ready_for_ticket: normalized.ready_for_ticket,\n  decision: normalized\n} };"
+        "jsCode": "const raw = $json.output ?? $json;\nlet decision = raw;\n\nif (typeof raw === 'string') {\n  try {\n    decision = JSON.parse(raw);\n  } catch {\n    throw new Error('Agent output was not valid JSON');\n  }\n}\n\nif (!decision || typeof decision !== 'object') {\n  throw new Error('Agent output is missing');\n}\nif (typeof decision.ready_for_ticket !== 'boolean') {\n  throw new Error('ready_for_ticket must be boolean');\n}\n\nconst input = $('Prepare Verified Request').first().json;\nconst customerResult = $('Get Verified Customer').first().json;\nconst clean = (value, max = 5000) => String(value ?? '').trim().slice(0, max);\n\nconst categories = ['Subscription','Billing','Refund','Account Access','Technical Support','Cancellation','Security','General Question','Other'];\nconst severities = ['Low','Medium','High','Critical'];\nconst statuses = ['Waiting for Customer','Investigating','Waiting for Approval','Completed','Failed','Escalated'];\nconst resolutionTypes = ['AI Resolved','Human Resolved','AI + Human','Unresolved'];\nconst escalationReasons = ['','technical_complexity','customer_request','policy_requirement','ai_limitation'];\n\nconst normalized = {\n  ready_for_ticket: decision.ready_for_ticket,\n  reply: clean(decision.reply, 2000),\n  missing_information: Array.isArray(decision.missing_information)\n    ? decision.missing_information.map(value => clean(value, 200)).filter(Boolean).slice(0, 5)\n    : [],\n  issue_category: clean(decision.issue_category, 64),\n  issue_severity: clean(decision.issue_severity, 16),\n  ai_handling_status: clean(decision.ai_handling_status, 64),\n  requires_human_approval: decision.requires_human_approval === true,\n  escalation_reason: clean(decision.escalation_reason, 64),\n  resolution_type: clean(decision.resolution_type, 32) || 'Unresolved',\n  subject: clean(decision.subject, 200),\n  description: clean(decision.description, 5000),\n  resolution_summary: clean(decision.resolution_summary, 2000),\n  policy_evidence: Array.isArray(decision.policy_evidence)\n    ? decision.policy_evidence.slice(0, 5).map(item => ({\n        document_code: clean(item?.document_code, 64),\n        section_title: clean(item?.section_title, 200)\n      })).filter(item => item.document_code && item.section_title)\n    : []\n};\n\nif (!normalized.reply) throw new Error('Agent reply is required');\nif (!statuses.includes(normalized.ai_handling_status)) throw new Error('Invalid AI handling status');\nif (!resolutionTypes.includes(normalized.resolution_type)) throw new Error('Invalid resolution type');\nif (!escalationReasons.includes(normalized.escalation_reason)) throw new Error('Invalid escalation reason');\n\nif (!normalized.ready_for_ticket) {\n  normalized.ai_handling_status = 'Waiting for Customer';\n  normalized.requires_human_approval = false;\n  normalized.escalation_reason = '';\n  normalized.resolution_type = 'Unresolved';\n}\n\nif (normalized.ready_for_ticket) {\n  if (!categories.includes(normalized.issue_category)) throw new Error('Ticket-ready output needs a valid issue category');\n  if (!severities.includes(normalized.issue_severity)) throw new Error('Ticket-ready output needs a valid issue severity');\n  if (normalized.issue_category === 'Refund' && ['Low', 'Medium'].includes(normalized.issue_severity)) {\n    normalized.issue_severity = 'High';\n  }\n  if (normalized.subject.length < 5) throw new Error('Ticket-ready output needs a subject');\n  if (!normalized.description) throw new Error('Ticket-ready output needs a description');\n  if (normalized.ai_handling_status === 'Waiting for Customer') throw new Error('Ticket-ready output cannot wait for customer');\n  if (['Waiting for Approval','Escalated','Failed'].includes(normalized.ai_handling_status) && !normalized.escalation_reason) {\n    throw new Error('Human Review output needs an escalation reason');\n  }\n  if (normalized.ai_handling_status === 'Waiting for Approval') {\n    normalized.requires_human_approval = true;\n  }\n  if (normalized.ai_handling_status === 'Completed') {\n    if (normalized.resolution_type !== 'AI Resolved') throw new Error('Completed AI case must use AI Resolved');\n    if (!normalized.resolution_summary) throw new Error('Completed case needs a resolution summary');\n  } else {\n    normalized.resolution_type = 'Unresolved';\n    normalized.resolution_summary = '';\n  }\n}\n\nreturn { json: {\n  ...input,\n  customer: customerResult.customer,\n  hubspot_contact_id: customerResult.hubspot?.contact_id ?? null,\n  ready_for_ticket: normalized.ready_for_ticket,\n  decision: normalized\n} };"
       },
       "id": "d110820c-ca23-45d8-a674-8e1da5682e18",
       "name": "Validate Agent Decision",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -48,
+        160,
         -64
       ]
     },
@@ -382,7 +382,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.4,
       "position": [
-        176,
+        384,
         -64
       ]
     },
@@ -396,7 +396,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        416,
+        624,
         96
       ]
     },
@@ -412,7 +412,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        656,
+        864,
         96
       ]
     },
@@ -576,7 +576,7 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.4,
       "position": [
-        416,
+        624,
         -192
       ]
     },
@@ -590,7 +590,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        656,
+        864,
         -192
       ]
     },
@@ -606,7 +606,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        896,
+        1104,
         -192
       ]
     },
@@ -620,7 +620,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -320,
+        -384,
         224
       ]
     },
@@ -636,23 +636,146 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        -48,
+        -112,
         224
       ]
+    },
+    {
+      "id": "fadb5d44-e047-4058-936a-1eeea00c7ce8",
+      "name": "Extract Authenticated Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1776,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const headers = $json.headers ?? {};\nconst body = $json.body ?? {};\nconst authorization = String(headers.authorization ?? headers.Authorization ?? '').trim();\n\nreturn { json: {\n  authorization,\n  body,\n  request_received_at: new Date().toISOString()\n} };"
+      }
+    },
+    {
+      "id": "33990a40-f1c3-4624-a977-6e9d1edcbfbb",
+      "name": "Verify Supabase Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -1552,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL + '/auth/v1/user' }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ $('Extract Authenticated Request').first().json.authorization }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "onError": "stopWorkflow",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000
+    },
+    {
+      "id": "761fde69-95ef-46e2-9c0e-b03b19e40af4",
+      "name": "Authenticated?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        -1328,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ String($json.statusCode) }}",
+              "rightValue": "200",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "fba7f661-10ca-4d69-9b82-f42c46c1ff94",
+      "name": "Build Authentication Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1072,
+        240
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const request = $('Extract Authenticated Request').first().json;\nreturn { json: {\n  success: false,\n  conversation_id: String(request.body?.conversation_id ?? ''),\n  request_id: null,\n  status: 'Unauthorized',\n  ready_for_ticket: false,\n  reply: 'Your session could not be verified. Please sign in again.',\n  missing_information: [],\n  requires_human_approval: false,\n  ticket_id: null\n} };"
+      }
+    },
+    {
+      "id": "b8cb0c82-03c3-43ff-96fc-cd77420fc008",
+      "name": "Return Authentication Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -816,
+        240
+      ],
+      "parameters": {
+        "respondWith": "firstIncomingItem",
+        "options": {
+          "responseCode": 401
+        },
+        "enableStreaming": false
+      }
+    },
+    {
+      "id": "b5dc0326-6fb6-4aa5-959d-3af4b945eb9d",
+      "name": "Prepare Verified Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -384,
+        -64
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const input = $('Validate Input').first().json;\nconst lookup = $json;\nconst customer = lookup.customer;\n\nif (!customer?.customer_id) {\n  throw new Error('Verified customer record is missing customer_id');\n}\n\nconst customerId = String(customer.customer_id).trim().toUpperCase();\nconst conversationKey = input.conversation_id\n  .replace(/[^A-Za-z0-9_-]/g, '-')\n  .toUpperCase()\n  .slice(0, 40);\nconst requestId = `REQ-${customerId}-${conversationKey}`.slice(0, 64);\n\nreturn { json: {\n  ...input,\n  customer_id: customerId,\n  request_id: requestId,\n  customer,\n  hubspot: lookup.hubspot,\n  data_consistency: lookup.data_consistency,\n  mismatched_fields: lookup.mismatched_fields\n} };"
+      }
     }
   ],
   "connections": {
-    "Receive Support Message": {
-      "main": [
-        [
-          {
-            "node": "Validate Input",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Validate Input": {
       "main": [
         [
@@ -679,7 +802,7 @@
       "main": [
         [
           {
-            "node": "Investigate Support Case",
+            "node": "Prepare Verified Request",
             "type": "main",
             "index": 0
           }
@@ -847,6 +970,79 @@
           }
         ]
       ]
+    },
+    "Receive Support Message": {
+      "main": [
+        [
+          {
+            "node": "Extract Authenticated Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Authenticated Request": {
+      "main": [
+        [
+          {
+            "node": "Verify Supabase Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Supabase Session": {
+      "main": [
+        [
+          {
+            "node": "Authenticated?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Authenticated?": {
+      "main": [
+        [
+          {
+            "node": "Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Authentication Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Authentication Error": {
+      "main": [
+        [
+          {
+            "node": "Return Authentication Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Verified Request": {
+      "main": [
+        [
+          {
+            "node": "Investigate Support Case",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -856,7 +1052,7 @@
     "saveManualExecutions": true
   },
   "active": false,
-  "versionId": "69f1f0d8-00d4-47e3-8d3e-ce8f04bdb8ee",
+  "versionId": "64638590-73b2-42b8-bfef-a3276a83dcdb",
   "meta": {
     "aiBuilderAssisted": true,
     "builderVariant": "mcp",
